@@ -267,6 +267,9 @@ class RemoteEnv(BaseEnv):
         super(RemoteEnv, self).__init__(name, parser, section)
         # Store the server configuration
         self.server = server
+
+    def set_test_name(self, name):
+        self.test_name = name
     
     def get_command_executor(self):
         '''
@@ -283,9 +286,11 @@ class RemoteEnv(BaseEnv):
         '''
         Create a new driver.
         '''
+        caps = self.get_desired_capabilities()
+        caps['name'] = self.test_name
         return Remote(**filternone(
             command_executor=self.get_command_executor(),
-            desired_capabilities=self.get_desired_capabilities(),
+            desired_capabilities=caps,
         ))
 
 class DriverConfig(object):

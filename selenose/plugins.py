@@ -5,6 +5,8 @@ except ImportError:
     from urllib2 import URLError
 
 from nose import plugins, config
+import selenium.common
+import time
 
 from selenose.server import Server
 from selenose.configs import ServerConfig, DriverConfig
@@ -93,7 +95,26 @@ class SeleniumDriverPlugin(plugins.Plugin):
         # Check if this is a SELENIUM test
         if self.eligible(test):
             # If it is, inject a driver
-            test.context.driver = self.env.create()
+            if hasattr(self.env, 'set_test_name'):
+                self.env.set_test_name(str(test))
+
+            # handle situation where provider limits number of concurrent selenium
+            # sessions.  If this error is returned, wait 30 seconds and then
+            # try creating the session again.  This is better than if the tests
+            # fail due to this condition.
+            while True:
+                try:
+                    driver = self.env.create()
+                except selenium.common.exceptions.WebDriverException, e:
+                    if str(e).find('please wait for a test to finish') != -1:
+                        print 'waiting for available selenium session...'
+                        time.sleep(30)
+                    else:
+                        raise
+                else:
+                    # Success.  Store the driver and break out of loop.
+                    test.context.driver = driver
+                    break
 
     def stopTest(self, test):
         '''
@@ -102,10 +123,11 @@ class SeleniumDriverPlugin(plugins.Plugin):
         # Check if was a SELENIUM test
         if self.eligible(test):
             # If quit already called in test, produces a URLError, so catch it
-            try:
-                # Quit
-                test.context.driver.quit()
-            # Ignore error if quit already
-            except URLError: pass
-            # Reset
-            test.context.driver = None
+            if test.context.driver:
+                try:
+                    # Quit
+                    test.context.driver.quit()
+                # Ignore error if quit already
+                except URLError: pass
+                # Reset
+                test.context.driver = None
